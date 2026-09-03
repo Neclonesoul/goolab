@@ -572,101 +572,151 @@ function moveFluidPointer(event) {
   pointer.time = now;
 }
 
-/*
- * ----------------------------------------------------------
- * GLOBAL TACTILE INPUT
- *
- * Android browsers do not have to hit-test the canvas for
- * the experiment to receive interaction. We listen at the
- * window in capture phase and use the exact simulation
- * transform to decide whether the pointer belongs to the
- * vessel.
- * ----------------------------------------------------------
- */
-
-function eventIsExperimentUI(event) {
-  const target = event.target;
-
-  if (!(target instanceof Element))
-    return false;
-
-  return Boolean(
-    target.closest(
-      "button, input, output, label, " +
-      "[role='button'], a"
-    )
-  );
-}
-
-function onFluidPointerDown(event) {
-  if (eventIsExperimentUI(event))
-    return;
-
-  if (!beginFluidPointer(event))
-    return;
-
-  event.preventDefault();
-}
-
-function onFluidPointerMove(event) {
-  if (
-    !activeFluidPointers.has(
-      event.pointerId
-    )
-  )
-    return;
-
-  /*
-   * Deliberately use the primary PointerEvent only.
-   *
-   * Android's coalesced-event behaviour varies between
-   * browsers and was adding complexity to a path that
-   * only needs one reliable sample per dispatched move.
-   */
-  moveFluidPointer(event);
-
-  event.preventDefault();
-}
-
 function releaseFluidPointer(event) {
   activeFluidPointers.delete(
     event.pointerId
   );
 }
 
+/*
+ * ----------------------------------------------------------
+ * DEDICATED VESSEL TOUCH SURFACE
+ *
+ * A real DOM hit-target sits directly above the circular
+ * vessel. Android therefore has an unambiguous element to
+ * deliver pointer events to.
+ * ----------------------------------------------------------
+ */
+
+const fluidTouchSurface =
+  document.createElement("div");
+
+fluidTouchSurface.id =
+  "fluidTouchSurface";
+
+fluidTouchSurface.setAttribute(
+  "aria-hidden",
+  "true"
+);
+
+document.body.appendChild(
+  fluidTouchSurface
+);
+
+function positionFluidTouchSurface() {
+  const t = simulationTransform();
+
+  const diameter =
+    fluid.vessel.radius *
+    2 *
+    t.scale;
+
+  fluidTouchSurface.style.width =
+    `${diameter}px`;
+
+  fluidTouchSurface.style.height =
+    `${diameter}px`;
+
+  fluidTouchSurface.style.left =
+    `${t.cx - diameter / 2}px`;
+
+  fluidTouchSurface.style.top =
+    `${t.cy - diameter / 2}px`;
+}
+
+positionFluidTouchSurface();
+
 window.addEventListener(
+  "resize",
+  positionFluidTouchSurface,
+  { passive: true }
+);
+
+window.addEventListener(
+  "orientationchange",
+  () => {
+    requestAnimationFrame(
+      positionFluidTouchSurface
+    );
+  },
+  { passive: true }
+);
+
+
+fluidTouchSurface.addEventListener(
   "pointerdown",
-  onFluidPointerDown,
-  {
-    passive: false,
-    capture: true
-  }
+  event => {
+    if (!beginFluidPointer(event))
+      return;
+
+    try {
+      fluidTouchSurface.setPointerCapture(
+        event.pointerId
+      );
+    } catch {}
+
+    document.documentElement.dataset.touchCount =
+      String(activeFluidPointers.size);
+
+    event.preventDefault();
+    event.stopPropagation();
+  },
+  { passive: false }
 );
 
-window.addEventListener(
+
+fluidTouchSurface.addEventListener(
   "pointermove",
-  onFluidPointerMove,
-  {
-    passive: false,
-    capture: true
-  }
+  event => {
+    if (
+      !activeFluidPointers.has(
+        event.pointerId
+      )
+    )
+      return;
+
+    moveFluidPointer(event);
+
+    document.documentElement.dataset.touchCount =
+      String(activeFluidPointers.size);
+
+    event.preventDefault();
+    event.stopPropagation();
+  },
+  { passive: false }
 );
 
-window.addEventListener(
+
+function finishSurfacePointer(event) {
+  releaseFluidPointer(event);
+
+  document.documentElement.dataset.touchCount =
+    String(activeFluidPointers.size);
+
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+
+fluidTouchSurface.addEventListener(
   "pointerup",
-  releaseFluidPointer,
-  {
-    passive: true,
-    capture: true
-  }
+  finishSurfacePointer,
+  { passive: false }
 );
 
-window.addEventListener(
+fluidTouchSurface.addEventListener(
   "pointercancel",
-  releaseFluidPointer,
-  {
-    passive: true,
-    capture: true
+  finishSurfacePointer,
+  { passive: false }
+);
+
+fluidTouchSurface.addEventListener(
+  "lostpointercapture",
+  event => {
+    releaseFluidPointer(event);
+
+    document.documentElement.dataset.touchCount =
+      String(activeFluidPointers.size);
   }
 );
 

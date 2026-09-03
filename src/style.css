@@ -462,3 +462,43 @@ html[data-touch-count]:not([data-touch-count="0"]) body::after {
   letter-spacing: .16em;
   color: rgba(255,255,255,.55);
 }
+
+/* ---------------------------------------------------------
+   GOOLAB / 001 — dedicated tactile vessel surface
+   --------------------------------------------------------- */
+
+#fluidTouchSurface {
+  position: fixed;
+  z-index: 20;
+
+  border-radius: 50%;
+
+  background: transparent;
+
+  pointer-events: auto;
+  touch-action: none;
+
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  overscroll-behavior: none;
+}
+
+/*
+ * Controls and startup UI must remain above the vessel's
+ * tactile layer and receive their own taps normally.
+ */
+.controls,
+.control-panel,
+.menu,
+.menu-panel,
+.boot,
+.boot-screen,
+.overlay,
+button,
+input,
+label {
+  position: relative;
+  z-index: 30;
+}
