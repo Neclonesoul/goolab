@@ -1,3 +1,5 @@
 
 .backup/
 .wrangler/
+.goolab-server.pid
+.goolab-server.log

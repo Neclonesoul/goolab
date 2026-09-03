@@ -876,7 +876,14 @@ export function createFluidExperiment(scale = 1) {
   const resolution = 42;
   const h = height / resolution;
 
-  const particleRadius = 0.27 * h;
+  const countScale =
+    Math.max(
+      0.50,
+      Math.min(2.00, Number(scale) || 1)
+    );
+
+  const particleRadius =
+    (0.27 * h) / Math.sqrt(countScale);
 
   const vessel = {
     cx: width / 2,

@@ -51,6 +51,12 @@ const damping =
 const dampingOutput =
   document.querySelector("#dampingOutput");
 
+const particleCount =
+  document.querySelector("#particleCount");
+
+const particleCountOutput =
+  document.querySelector("#particleCountOutput");
+
 const driftToggle =
   document.querySelector("#driftToggle");
 
@@ -439,183 +445,111 @@ function drawDebugGrid() {
 }
 
 
+
 /* ----------------------------------------------------------
- * TOUCH / POINTER FLUID INTERACTION
- *
- * Pointer movement inside the circular vessel imparts velocity
- * to nearby particles. Uses Pointer Events, so this works for:
- *   - Android touch
- *   - multi-touch
- *   - mouse on ARCHMAC
- *   - stylus
- *
- * Physics solver itself remains unchanged.
+ * GOOLAB TACTILE INTERACTION FIELD
  * ---------------------------------------------------------- */
 
-const activePointers = new Map();
+const activeFluidPointers = new Map();
 
 canvas.style.touchAction = "none";
 
-function pointerToFluid(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-
-  const sx =
-    (clientX - rect.left) *
-    (canvas.width / rect.width);
-
-  const sy =
-    (clientY - rect.top) *
-    (canvas.height / rect.height);
-
-  /*
-   * Renderer maps world coordinates into the centred square
-   * vessel using the same scale used by particle drawing.
-   */
-  const size =
-    Math.min(canvas.width, canvas.height);
-
-  const scale =
-    size / 3.0;
-
-  const offsetX =
-    (canvas.width - size) * 0.5;
-
-  const offsetY =
-    (canvas.height - size) * 0.5;
+function screenToSimulation(clientX, clientY) {
+  const t = simulationTransform();
 
   return {
-    x: (sx - offsetX) / scale,
-    y: 3.0 - ((sy - offsetY) / scale),
-    scale
+    x:
+      fluid.vessel.cx +
+      (clientX - t.cx) / t.scale,
+
+    y:
+      fluid.vessel.cy -
+      (clientY - t.cy) / t.scale
   };
 }
 
-function insideVessel(x, y) {
-  const dx = x - 1.5;
-  const dy = y - 1.5;
+function insideFluidVessel(x, y) {
+  const dx = x - fluid.vessel.cx;
+  const dy = y - fluid.vessel.cy;
 
   return (
-    dx * dx + dy * dy <
-    1.31 * 1.31
+    dx * dx + dy * dy <=
+    fluid.vessel.radius * fluid.vessel.radius
   );
 }
 
-function applyPointerImpulse(x, y, vx, vy) {
-  const influenceRadius = 0.34;
-  const influenceSq =
-    influenceRadius * influenceRadius;
+function updateFluidPointer(event) {
+  const now = performance.now();
 
-  const maxImpulse = 8.0;
+  const pos =
+    screenToSimulation(
+      event.clientX,
+      event.clientY
+    );
 
-  vx = Math.max(-maxImpulse, Math.min(maxImpulse, vx));
-  vy = Math.max(-maxImpulse, Math.min(maxImpulse, vy));
+  const previous =
+    activeFluidPointers.get(event.pointerId);
 
-  for (let i = 0; i < fluid.numParticles; i++) {
-    const p = 2 * i;
+  let vx = 0;
+  let vy = 0;
 
-    const dx =
-      fluid.particlePos[p] - x;
+  if (previous) {
+    const dt =
+      Math.max(
+        1 / 240,
+        Math.min(
+          0.05,
+          (now - previous.time) / 1000
+        )
+      );
 
-    const dy =
-      fluid.particlePos[p + 1] - y;
+    vx =
+      (pos.x - previous.x) / dt;
 
-    const d2 =
-      dx * dx + dy * dy;
-
-    if (d2 >= influenceSq)
-      continue;
-
-    const falloff =
-      1.0 - Math.sqrt(d2) / influenceRadius;
-
-    const gain =
-      falloff * falloff * 0.72;
-
-    fluid.particleVel[p] +=
-      vx * gain;
-
-    fluid.particleVel[p + 1] +=
-      vy * gain;
+    vy =
+      (pos.y - previous.y) / dt;
   }
+
+  const speed =
+    Math.hypot(vx, vy);
+
+  const maxSpeed = 12;
+
+  if (speed > maxSpeed) {
+    const k = maxSpeed / speed;
+    vx *= k;
+    vy *= k;
+  }
+
+  activeFluidPointers.set(
+    event.pointerId,
+    {
+      x: pos.x,
+      y: pos.y,
+      vx,
+      vy,
+      time: now,
+      inside:
+        insideFluidVessel(pos.x, pos.y)
+    }
+  );
 }
 
 canvas.addEventListener(
   "pointerdown",
-  (event) => {
-    const pos =
-      pointerToFluid(
-        event.clientX,
-        event.clientY
-      );
+  event => {
+    updateFluidPointer(event);
 
-    if (!insideVessel(pos.x, pos.y))
+    const state =
+      activeFluidPointers.get(event.pointerId);
+
+    if (!state?.inside) {
+      activeFluidPointers.delete(event.pointerId);
       return;
+    }
 
     canvas.setPointerCapture?.(
       event.pointerId
-    );
-
-    activePointers.set(
-      event.pointerId,
-      {
-        x: pos.x,
-        y: pos.y,
-        t: performance.now()
-      }
-    );
-
-    event.preventDefault();
-  }
-);
-
-canvas.addEventListener(
-  "pointermove",
-  (event) => {
-    const previous =
-      activePointers.get(
-        event.pointerId
-      );
-
-    if (!previous)
-      return;
-
-    const pos =
-      pointerToFluid(
-        event.clientX,
-        event.clientY
-      );
-
-    const now =
-      performance.now();
-
-    const dt =
-      Math.max(
-        0.008,
-        (now - previous.t) / 1000
-      );
-
-    const vx =
-      (pos.x - previous.x) / dt;
-
-    const vy =
-      (pos.y - previous.y) / dt;
-
-    if (insideVessel(pos.x, pos.y)) {
-      applyPointerImpulse(
-        pos.x,
-        pos.y,
-        vx,
-        vy
-      );
-    }
-
-    activePointers.set(
-      event.pointerId,
-      {
-        x: pos.x,
-        y: pos.y,
-        t: now
-      }
     );
 
     event.preventDefault();
@@ -623,22 +557,131 @@ canvas.addEventListener(
   { passive: false }
 );
 
-function releasePointer(event) {
-  activePointers.delete(
+canvas.addEventListener(
+  "pointermove",
+  event => {
+    if (
+      !activeFluidPointers.has(event.pointerId)
+    )
+      return;
+
+    const samples =
+      typeof event.getCoalescedEvents === "function"
+        ? event.getCoalescedEvents()
+        : [];
+
+    if (samples.length) {
+      for (const sample of samples)
+        updateFluidPointer(sample);
+    }
+
+    updateFluidPointer(event);
+
+    event.preventDefault();
+  },
+  { passive: false }
+);
+
+function releaseFluidPointer(event) {
+  activeFluidPointers.delete(
     event.pointerId
   );
 }
 
 canvas.addEventListener(
   "pointerup",
-  releasePointer
+  releaseFluidPointer
 );
 
 canvas.addEventListener(
   "pointercancel",
-  releasePointer
+  releaseFluidPointer
 );
 
+canvas.addEventListener(
+  "lostpointercapture",
+  releaseFluidPointer
+);
+
+function applyTouchField() {
+  if (!activeFluidPointers.size)
+    return;
+
+  const radius = 0.38;
+  const radiusSq = radius * radius;
+
+  for (
+    const pointer of activeFluidPointers.values()
+  ) {
+    if (!pointer.inside)
+      continue;
+
+    for (
+      let i = 0;
+      i < fluid.numParticles;
+      i++
+    ) {
+      const p = 2 * i;
+
+      const dx =
+        fluid.particlePos[p] -
+        pointer.x;
+
+      const dy =
+        fluid.particlePos[p + 1] -
+        pointer.y;
+
+      const d2 =
+        dx * dx + dy * dy;
+
+      if (d2 >= radiusSq)
+        continue;
+
+      const dist =
+        Math.sqrt(
+          Math.max(d2, 0.000001)
+        );
+
+      const falloff =
+        1 - dist / radius;
+
+      /*
+       * Drag velocity:
+       * fluid follows a moving finger.
+       */
+      const drag =
+        falloff * falloff * 0.34;
+
+      fluid.particleVel[p] +=
+        pointer.vx * drag;
+
+      fluid.particleVel[p + 1] +=
+        pointer.vy * drag;
+
+      /*
+       * Local displacement:
+       * even a slow/stationary finger
+       * physically disturbs the fluid.
+       */
+      const push =
+        falloff * 0.055;
+
+      fluid.particleVel[p] +=
+        (dx / dist) * push;
+
+      fluid.particleVel[p + 1] +=
+        (dy / dist) * push;
+    }
+
+    /*
+     * Decay swipe velocity after each
+     * physics application so impulses
+     * don't persist indefinitely.
+     */
+    pointer.vx *= 0.78;
+    pointer.vy *= 0.78;
+  }
+}
 
 function render() {
   if (config.trail) {
@@ -689,6 +732,8 @@ function smoothGravity() {
 
 function stepPhysics() {
   smoothGravity();
+
+  applyTouchField();
 
   fluid.simulate({
     dt: FIXED_DT,
@@ -1151,6 +1196,46 @@ flipRatio.addEventListener(
   }
 );
 
+
+let particleCountScale = 1.00;
+
+function applyParticleCountScale() {
+  particleCountScale =
+    Math.max(
+      0.50,
+      Math.min(
+        2.00,
+        Number(particleCount.value) || 1
+      )
+    );
+
+  fluid =
+    createFluidExperiment(
+      particleCountScale
+    );
+
+  accumulator = 0;
+  previousTime = performance.now();
+
+  particleCountOutput.textContent =
+    fluid.numParticles +
+    " · " +
+    particleCountScale.toFixed(2) +
+    "×";
+}
+
+particleCount.addEventListener(
+  "input",
+  applyParticleCountScale
+);
+
+/*
+ * Initialise readout from the real
+ * particle population.
+ */
+particleCountOutput.textContent =
+  fluid.numParticles + " · 1.00×";
+
 gravityScale.addEventListener(
   "input",
   () => {
@@ -1240,7 +1325,7 @@ resetButton.addEventListener(
   "click",
   () => {
     fluid =
-      createFluidExperiment();
+      createFluidExperiment(particleCountScale);
 
     gravity.targetX = 0;
     gravity.targetY = -G;
