@@ -3,3 +3,4 @@
 .wrangler/
 .goolab-server.pid
 .goolab-server.log
+.backup-main-touch-*.js
