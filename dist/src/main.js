@@ -438,6 +438,208 @@ function drawDebugGrid() {
   }
 }
 
+
+/* ----------------------------------------------------------
+ * TOUCH / POINTER FLUID INTERACTION
+ *
+ * Pointer movement inside the circular vessel imparts velocity
+ * to nearby particles. Uses Pointer Events, so this works for:
+ *   - Android touch
+ *   - multi-touch
+ *   - mouse on ARCHMAC
+ *   - stylus
+ *
+ * Physics solver itself remains unchanged.
+ * ---------------------------------------------------------- */
+
+const activePointers = new Map();
+
+canvas.style.touchAction = "none";
+
+function pointerToFluid(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+
+  const sx =
+    (clientX - rect.left) *
+    (canvas.width / rect.width);
+
+  const sy =
+    (clientY - rect.top) *
+    (canvas.height / rect.height);
+
+  /*
+   * Renderer maps world coordinates into the centred square
+   * vessel using the same scale used by particle drawing.
+   */
+  const size =
+    Math.min(canvas.width, canvas.height);
+
+  const scale =
+    size / 3.0;
+
+  const offsetX =
+    (canvas.width - size) * 0.5;
+
+  const offsetY =
+    (canvas.height - size) * 0.5;
+
+  return {
+    x: (sx - offsetX) / scale,
+    y: 3.0 - ((sy - offsetY) / scale),
+    scale
+  };
+}
+
+function insideVessel(x, y) {
+  const dx = x - 1.5;
+  const dy = y - 1.5;
+
+  return (
+    dx * dx + dy * dy <
+    1.31 * 1.31
+  );
+}
+
+function applyPointerImpulse(x, y, vx, vy) {
+  const influenceRadius = 0.34;
+  const influenceSq =
+    influenceRadius * influenceRadius;
+
+  const maxImpulse = 8.0;
+
+  vx = Math.max(-maxImpulse, Math.min(maxImpulse, vx));
+  vy = Math.max(-maxImpulse, Math.min(maxImpulse, vy));
+
+  for (let i = 0; i < fluid.numParticles; i++) {
+    const p = 2 * i;
+
+    const dx =
+      fluid.particlePos[p] - x;
+
+    const dy =
+      fluid.particlePos[p + 1] - y;
+
+    const d2 =
+      dx * dx + dy * dy;
+
+    if (d2 >= influenceSq)
+      continue;
+
+    const falloff =
+      1.0 - Math.sqrt(d2) / influenceRadius;
+
+    const gain =
+      falloff * falloff * 0.72;
+
+    fluid.particleVel[p] +=
+      vx * gain;
+
+    fluid.particleVel[p + 1] +=
+      vy * gain;
+  }
+}
+
+canvas.addEventListener(
+  "pointerdown",
+  (event) => {
+    const pos =
+      pointerToFluid(
+        event.clientX,
+        event.clientY
+      );
+
+    if (!insideVessel(pos.x, pos.y))
+      return;
+
+    canvas.setPointerCapture?.(
+      event.pointerId
+    );
+
+    activePointers.set(
+      event.pointerId,
+      {
+        x: pos.x,
+        y: pos.y,
+        t: performance.now()
+      }
+    );
+
+    event.preventDefault();
+  }
+);
+
+canvas.addEventListener(
+  "pointermove",
+  (event) => {
+    const previous =
+      activePointers.get(
+        event.pointerId
+      );
+
+    if (!previous)
+      return;
+
+    const pos =
+      pointerToFluid(
+        event.clientX,
+        event.clientY
+      );
+
+    const now =
+      performance.now();
+
+    const dt =
+      Math.max(
+        0.008,
+        (now - previous.t) / 1000
+      );
+
+    const vx =
+      (pos.x - previous.x) / dt;
+
+    const vy =
+      (pos.y - previous.y) / dt;
+
+    if (insideVessel(pos.x, pos.y)) {
+      applyPointerImpulse(
+        pos.x,
+        pos.y,
+        vx,
+        vy
+      );
+    }
+
+    activePointers.set(
+      event.pointerId,
+      {
+        x: pos.x,
+        y: pos.y,
+        t: now
+      }
+    );
+
+    event.preventDefault();
+  },
+  { passive: false }
+);
+
+function releasePointer(event) {
+  activePointers.delete(
+    event.pointerId
+  );
+}
+
+canvas.addEventListener(
+  "pointerup",
+  releasePointer
+);
+
+canvas.addEventListener(
+  "pointercancel",
+  releasePointer
+);
+
+
 function render() {
   if (config.trail) {
     ctx.fillStyle =
