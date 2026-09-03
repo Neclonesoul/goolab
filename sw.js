@@ -1,4 +1,4 @@
-const CACHE = "goolab-001-v2";
+const CACHE = "goolab-001-v3";
 
 const ASSETS = [
   "./",
