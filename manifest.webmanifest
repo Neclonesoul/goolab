@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "GOOLAB / 001 — FLUID",
+  "short_name": "GOOLAB",
+  "description": "A device-responsive FLIP fluid laboratory experiment.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": [
+    "education",
+    "entertainment",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "./assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

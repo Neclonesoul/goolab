@@ -1,0 +1,55 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+>
+  <rect
+    width="512"
+    height="512"
+    rx="108"
+    fill="#000"
+  />
+
+  <circle
+    cx="256"
+    cy="256"
+    r="170"
+    fill="none"
+    stroke="#b864ff"
+    stroke-opacity=".42"
+    stroke-width="4"
+  />
+
+  <path
+    d="
+      M110 290
+      C165 245 215 337 273 286
+      C329 237 360 285 402 265
+      L402 327
+      C360 351 325 316 277 356
+      C214 407 165 318 110 354
+      Z
+    "
+    fill="#b864ff"
+  />
+
+  <circle
+    cx="202"
+    cy="304"
+    r="12"
+    fill="#f0c8ff"
+  />
+
+  <circle
+    cx="248"
+    cy="330"
+    r="9"
+    fill="#f0c8ff"
+  />
+
+  <circle
+    cx="307"
+    cy="306"
+    r="11"
+    fill="#f0c8ff"
+  />
+</svg>
