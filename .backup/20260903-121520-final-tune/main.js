@@ -309,7 +309,7 @@ function drawParticles() {
 
   const radius = Math.max(
     1.2,
-    fluid.particleRadius * t.scale * 0.78
+    fluid.particleRadius * t.scale * 0.92
   );
 
   /*
@@ -353,7 +353,7 @@ function drawParticles() {
   ctx.fill();
 
   // brilliant core
-  const coreRadius = Math.max(0.65, radius * 0.40);
+  const coreRadius = Math.max(0.75, radius * 0.46);
 
   ctx.beginPath();
 

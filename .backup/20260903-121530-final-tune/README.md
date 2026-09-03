@@ -98,28 +98,3 @@ Final safe production profile:
 The pressure-grid resolution remains intentionally conservative.
 Visual fluid density is achieved primarily through particle density
 rather than unnecessarily increasing the Eulerian solver workload.
-
----
-
-## v0.1.0 — First Public Experiment
-
-Final safe production profile:
-
-- simulation grid: 42
-- physics: 60 Hz fixed timestep
-- maximum catch-up: 2 steps
-- pressure iterations: 18
-- particle separation iterations: 1
-- particle radius: 0.27 × grid spacing
-- batched Canvas particle rendering
-- true OLED-black presentation
-- SABER and PHOSPHOR emission modes
-- circular vessel
-- pointer/keyboard gravity emulation
-- mobile device-orientation input
-- mobile motion impulse input
-- offline PWA
-
-The pressure-grid resolution remains intentionally conservative.
-Visual fluid density is achieved primarily through particle density
-rather than unnecessarily increasing the Eulerian solver workload.

@@ -869,7 +869,7 @@ export class FlipFluid {
   }
 }
 
-export function createFluidExperiment(scale = 1) {
+export function createFluidExperiment() {
   const width = 3;
   const height = 3;
 

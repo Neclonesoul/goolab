@@ -45,6 +45,12 @@ const gravityScale =
 const gravityOutput =
   document.querySelector("#gravityOutput");
 
+const particleSize =
+  document.querySelector("#particleSize");
+
+const particleSizeOutput =
+  document.querySelector("#particleSizeOutput");
+
 const damping =
   document.querySelector("#damping");
 
@@ -78,6 +84,8 @@ const config = {
   flipRatio: 0.88,
 
   gravityScale: 1,
+
+  particleSize: 1.00,
 
   damping: 0.0015,
 
@@ -309,7 +317,7 @@ function drawParticles() {
 
   const radius = Math.max(
     1.2,
-    fluid.particleRadius * t.scale * 0.78
+    fluid.particleRadius * t.scale * 0.92 * config.particleSize
   );
 
   /*
@@ -353,7 +361,7 @@ function drawParticles() {
   ctx.fill();
 
   // brilliant core
-  const coreRadius = Math.max(0.65, radius * 0.40);
+  const coreRadius = Math.max(0.75, radius * 0.46);
 
   ctx.beginPath();
 
@@ -957,6 +965,17 @@ gravityScale.addEventListener(
 
     gravityOutput.textContent =
       `${config.gravityScale.toFixed(2)}G`;
+  }
+);
+
+particleSize.addEventListener(
+  "input",
+  () => {
+    config.particleSize =
+      Number(particleSize.value);
+
+    particleSizeOutput.textContent =
+      `${config.particleSize.toFixed(2)}×`;
   }
 );
 

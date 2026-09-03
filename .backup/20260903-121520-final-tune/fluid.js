@@ -869,14 +869,14 @@ export class FlipFluid {
   }
 }
 
-export function createFluidExperiment(scale = 1) {
+export function createFluidExperiment() {
   const width = 3;
   const height = 3;
 
   const resolution = 42;
   const h = height / resolution;
 
-  const particleRadius = 0.27 * h;
+  const particleRadius = 0.31 * h;
 
   const vessel = {
     cx: width / 2,
