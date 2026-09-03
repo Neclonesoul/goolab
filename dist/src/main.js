@@ -1324,6 +1324,47 @@ window.addEventListener(
   }
 );
 
+
+/*
+ * MOBILE VISUAL VIEWPORT
+ *
+ * Browser address/navigation bars change the genuinely
+ * visible height independently of the layout viewport.
+ * Expose that height to the control sheet.
+ */
+function updateVisualViewportHeight() {
+  const height =
+    window.visualViewport?.height ??
+    window.innerHeight;
+
+  document.documentElement.style.setProperty(
+    "--goolab-vvh",
+    `${Math.round(height)}px`
+  );
+}
+
+updateVisualViewportHeight();
+
+window.addEventListener(
+  "resize",
+  updateVisualViewportHeight,
+  { passive: true }
+);
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener(
+    "resize",
+    updateVisualViewportHeight,
+    { passive: true }
+  );
+
+  window.visualViewport.addEventListener(
+    "scroll",
+    updateVisualViewportHeight,
+    { passive: true }
+  );
+}
+
 /* ─────────────────────────────────────────
    UI
    ───────────────────────────────────────── */

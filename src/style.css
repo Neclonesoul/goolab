@@ -502,3 +502,187 @@ label {
   position: relative;
   z-index: 30;
 }
+
+
+/* =========================================================
+   GOOLAB / 001
+   MOBILE INSTRUMENT CONTROL SHEET
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  /*
+   * The desktop control panel is a floating card.
+   * On phones it becomes a proper bottom instrument sheet.
+   */
+
+  .controls {
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+
+    bottom:
+      max(
+        8px,
+        env(safe-area-inset-bottom)
+      );
+
+    width: auto;
+
+    /*
+     * --goolab-vvh is updated from visualViewport below.
+     * 100dvh remains the safe fallback.
+     */
+    max-height:
+      calc(
+        var(--goolab-vvh, 100dvh)
+        - max(12px, env(safe-area-inset-top))
+        - max(12px, env(safe-area-inset-bottom))
+        - 12px
+      );
+
+    padding:
+      16px
+      16px
+      max(16px, env(safe-area-inset-bottom));
+
+    border-radius: 20px;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    overscroll-behavior: contain;
+
+    -webkit-overflow-scrolling: touch;
+
+    transform:
+      translateY(20px)
+      scale(.985);
+  }
+
+  .controls.open {
+    transform: none;
+  }
+
+
+  /* Header stays available while scrolling controls. */
+
+  .controls-header {
+    position: sticky;
+    top: -16px;
+    z-index: 2;
+
+    margin:
+      -16px
+      -16px
+      8px;
+
+    padding:
+      16px
+      16px
+      12px;
+
+    background:
+      linear-gradient(
+        180deg,
+        rgba(15,15,21,.99) 72%,
+        rgba(15,15,21,.94) 88%,
+        transparent
+      );
+  }
+
+
+  /* Compact the laboratory controls vertically. */
+
+  .control-row {
+    grid-template-columns:
+      minmax(92px, 1fr)
+      minmax(90px, 1.15fr)
+      48px;
+
+    gap: 8px;
+
+    padding: 10px 0;
+  }
+
+  .control-row strong {
+    font-size: 8px;
+  }
+
+  .control-row small {
+    font-size: 6px;
+  }
+
+  .control-row output {
+    min-width: 0;
+    text-align: right;
+    font-size: 8px;
+  }
+
+
+  /* Colour selector must not force horizontal overflow. */
+
+  .segments {
+    min-width: 0;
+  }
+
+  .segments button {
+    min-width: 0;
+    padding-left: 7px;
+    padding-right: 7px;
+    font-size: 7px;
+  }
+
+
+  /* Two-column switches remain comfortably tappable. */
+
+  .toggle-grid {
+    gap: 7px;
+    margin-top: 12px;
+  }
+
+  .toggle-grid label {
+    min-height: 38px;
+  }
+
+
+  .actions {
+    gap: 7px;
+    margin-top: 14px;
+  }
+
+
+  /*
+   * Desktop instructions waste scarce vertical space on
+   * the actual phone instrument.
+   */
+  .desktop-help {
+    display: none;
+  }
+
+
+  /*
+   * Once the panel is open, the floating ○ is redundant.
+   * Keeping it behind the sheet also prevents visual clutter.
+   */
+  .controls.open ~ .menu-button {
+    visibility: hidden;
+  }
+}
+
+
+/*
+ * The dedicated vessel surface remains below controls.
+ * Explicit values make this invariant obvious.
+ */
+
+#fluidTouchSurface {
+  z-index: 20;
+}
+
+.menu-button {
+  z-index: 30;
+}
+
+.controls {
+  z-index: 40;
+}
