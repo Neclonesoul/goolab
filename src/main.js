@@ -478,8 +478,48 @@ function insideFluidVessel(x, y) {
   );
 }
 
-function updateFluidPointer(event) {
-  const now = performance.now();
+function beginFluidPointer(event) {
+  const pos =
+    screenToSimulation(
+      event.clientX,
+      event.clientY
+    );
+
+  if (!insideFluidVessel(pos.x, pos.y))
+    return false;
+
+  activeFluidPointers.set(
+    event.pointerId,
+    {
+      x: pos.x,
+      y: pos.y,
+
+      /*
+       * Accumulated physical displacement
+       * waiting for the next physics tick.
+       */
+      dx: 0,
+      dy: 0,
+
+      /*
+       * Latest measured velocity.
+       */
+      vx: 0,
+      vy: 0,
+
+      time: performance.now()
+    }
+  );
+
+  return true;
+}
+
+function moveFluidPointer(event) {
+  const pointer =
+    activeFluidPointers.get(event.pointerId);
+
+  if (!pointer)
+    return;
 
   const pos =
     screenToSimulation(
@@ -487,33 +527,34 @@ function updateFluidPointer(event) {
       event.clientY
     );
 
-  const previous =
-    activeFluidPointers.get(event.pointerId);
+  const now = performance.now();
 
-  let vx = 0;
-  let vy = 0;
+  const dt =
+    Math.max(
+      1 / 240,
+      Math.min(
+        0.05,
+        (now - pointer.time) / 1000
+      )
+    );
 
-  if (previous) {
-    const dt =
-      Math.max(
-        1 / 240,
-        Math.min(
-          0.05,
-          (now - previous.time) / 1000
-        )
-      );
+  const stepX = pos.x - pointer.x;
+  const stepY = pos.y - pointer.y;
 
-    vx =
-      (pos.x - previous.x) / dt;
+  /*
+   * Preserve actual travelled distance.
+   * This is what makes the finger act
+   * like a physical paddle rather than
+   * a momentary browser event.
+   */
+  pointer.dx += stepX;
+  pointer.dy += stepY;
 
-    vy =
-      (pos.y - previous.y) / dt;
-  }
+  let vx = stepX / dt;
+  let vy = stepY / dt;
 
-  const speed =
-    Math.hypot(vx, vy);
-
-  const maxSpeed = 12;
+  const speed = Math.hypot(vx, vy);
+  const maxSpeed = 18;
 
   if (speed > maxSpeed) {
     const k = maxSpeed / speed;
@@ -521,36 +562,25 @@ function updateFluidPointer(event) {
     vy *= k;
   }
 
-  activeFluidPointers.set(
-    event.pointerId,
-    {
-      x: pos.x,
-      y: pos.y,
-      vx,
-      vy,
-      time: now,
-      inside:
-        insideFluidVessel(pos.x, pos.y)
-    }
-  );
+  pointer.vx = vx;
+  pointer.vy = vy;
+
+  pointer.x = pos.x;
+  pointer.y = pos.y;
+  pointer.time = now;
 }
 
 canvas.addEventListener(
   "pointerdown",
   event => {
-    updateFluidPointer(event);
-
-    const state =
-      activeFluidPointers.get(event.pointerId);
-
-    if (!state?.inside) {
-      activeFluidPointers.delete(event.pointerId);
+    if (!beginFluidPointer(event))
       return;
-    }
 
-    canvas.setPointerCapture?.(
-      event.pointerId
-    );
+    try {
+      canvas.setPointerCapture(
+        event.pointerId
+      );
+    } catch {}
 
     event.preventDefault();
   },
@@ -561,10 +591,20 @@ canvas.addEventListener(
   "pointermove",
   event => {
     if (
-      !activeFluidPointers.has(event.pointerId)
+      !activeFluidPointers.has(
+        event.pointerId
+      )
     )
       return;
 
+    /*
+     * Coalesced events are useful on phones,
+     * but process each sample ONCE.
+     *
+     * The previous implementation processed
+     * the final point twice, which could
+     * collapse velocity back toward zero.
+     */
     const samples =
       typeof event.getCoalescedEvents === "function"
         ? event.getCoalescedEvents()
@@ -572,10 +612,20 @@ canvas.addEventListener(
 
     if (samples.length) {
       for (const sample of samples)
-        updateFluidPointer(sample);
-    }
+        moveFluidPointer(sample);
 
-    updateFluidPointer(event);
+      const last =
+        samples[samples.length - 1];
+
+      if (
+        last.clientX !== event.clientX ||
+        last.clientY !== event.clientY
+      ) {
+        moveFluidPointer(event);
+      }
+    } else {
+      moveFluidPointer(event);
+    }
 
     event.preventDefault();
   },
@@ -603,18 +653,53 @@ canvas.addEventListener(
   releaseFluidPointer
 );
 
+
+/*
+ * FINGER / PADDLE INTERACTION
+ *
+ * Unlike a weak force-only implementation,
+ * this directly advects nearby particles by
+ * a fraction of finger displacement and adds
+ * corresponding momentum.
+ *
+ * FLIP then inherits that disturbed state.
+ */
 function applyTouchField() {
   if (!activeFluidPointers.size)
     return;
 
-  const radius = 0.38;
-  const radiusSq = radius * radius;
+  const interactionRadius = 0.42;
+  const radiusSq =
+    interactionRadius *
+    interactionRadius;
 
   for (
-    const pointer of activeFluidPointers.values()
+    const pointer of
+      activeFluidPointers.values()
   ) {
-    if (!pointer.inside)
-      continue;
+    /*
+     * Bound one-frame displacement so a
+     * dropped browser frame cannot explode
+     * the solver.
+     */
+    const travel =
+      Math.hypot(
+        pointer.dx,
+        pointer.dy
+      );
+
+    let moveX = pointer.dx;
+    let moveY = pointer.dy;
+
+    const maxTravel = 0.16;
+
+    if (travel > maxTravel) {
+      const k =
+        maxTravel / travel;
+
+      moveX *= k;
+      moveY *= k;
+    }
 
     for (
       let i = 0;
@@ -623,63 +708,108 @@ function applyTouchField() {
     ) {
       const p = 2 * i;
 
-      const dx =
-        fluid.particlePos[p] -
-        pointer.x;
+      const px =
+        fluid.particlePos[p];
 
-      const dy =
-        fluid.particlePos[p + 1] -
-        pointer.y;
+      const py =
+        fluid.particlePos[p + 1];
+
+      const rx = px - pointer.x;
+      const ry = py - pointer.y;
 
       const d2 =
-        dx * dx + dy * dy;
+        rx * rx + ry * ry;
 
       if (d2 >= radiusSq)
         continue;
 
-      const dist =
+      const d =
         Math.sqrt(
-          Math.max(d2, 0.000001)
+          Math.max(
+            d2,
+            0.000001
+          )
         );
 
-      const falloff =
-        1 - dist / radius;
+      /*
+       * Soft radial kernel:
+       * strong at fingertip,
+       * fades to zero at edge.
+       */
+      const q =
+        1 - d / interactionRadius;
+
+      const influence =
+        q * q;
 
       /*
-       * Drag velocity:
-       * fluid follows a moving finger.
+       * PRIMARY tactile effect:
+       * physically carry fluid with finger.
        */
-      const drag =
-        falloff * falloff * 0.34;
+      fluid.particlePos[p] +=
+        moveX *
+        influence *
+        0.88;
 
+      fluid.particlePos[p + 1] +=
+        moveY *
+        influence *
+        0.88;
+
+      /*
+       * MOMENTUM:
+       * faster swipes leave stronger wake.
+       */
       fluid.particleVel[p] +=
-        pointer.vx * drag;
+        pointer.vx *
+        influence *
+        0.48;
 
       fluid.particleVel[p + 1] +=
-        pointer.vy * drag;
+        pointer.vy *
+        influence *
+        0.48;
 
       /*
-       * Local displacement:
-       * even a slow/stationary finger
-       * physically disturbs the fluid.
+       * Fingertip occupies space:
+       * slight radial displacement gives
+       * useful feedback even during slow
+       * movement / near-stationary contact.
        */
       const push =
-        falloff * 0.055;
+        influence * 0.018;
 
-      fluid.particleVel[p] +=
-        (dx / dist) * push;
+      fluid.particlePos[p] +=
+        (rx / d) * push;
 
-      fluid.particleVel[p + 1] +=
-        (dy / dist) * push;
+      fluid.particlePos[p + 1] +=
+        (ry / d) * push;
     }
 
     /*
-     * Decay swipe velocity after each
-     * physics application so impulses
-     * don't persist indefinitely.
+     * Displacement has now been consumed
+     * by this physics tick.
      */
-    pointer.vx *= 0.78;
-    pointer.vy *= 0.78;
+    pointer.dx = 0;
+    pointer.dy = 0;
+
+    /*
+     * Momentum dies naturally after release
+     * rather than remaining permanently.
+     */
+    pointer.vx *= 0.72;
+    pointer.vy *= 0.72;
+  }
+
+  /*
+   * Project any particles moved by the finger
+   * back through the real circular boundary.
+   */
+  if (
+    typeof fluid.handleCircularBoundary ===
+    "function"
+  ) {
+    fluid.handleCircularBoundary();
   }
 }
 
