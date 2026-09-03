@@ -453,6 +453,8 @@ function drawDebugGrid() {
 const activeFluidPointers = new Map();
 
 canvas.style.touchAction = "none";
+document.documentElement.style.touchAction = "none";
+document.body.style.touchAction = "none";
 
 function screenToSimulation(clientX, clientY) {
   const t = simulationTransform();
@@ -570,67 +572,61 @@ function moveFluidPointer(event) {
   pointer.time = now;
 }
 
-canvas.addEventListener(
-  "pointerdown",
-  event => {
-    if (!beginFluidPointer(event))
-      return;
+/*
+ * ----------------------------------------------------------
+ * GLOBAL TACTILE INPUT
+ *
+ * Android browsers do not have to hit-test the canvas for
+ * the experiment to receive interaction. We listen at the
+ * window in capture phase and use the exact simulation
+ * transform to decide whether the pointer belongs to the
+ * vessel.
+ * ----------------------------------------------------------
+ */
 
-    try {
-      canvas.setPointerCapture(
-        event.pointerId
-      );
-    } catch {}
+function eventIsExperimentUI(event) {
+  const target = event.target;
 
-    event.preventDefault();
-  },
-  { passive: false }
-);
+  if (!(target instanceof Element))
+    return false;
 
-canvas.addEventListener(
-  "pointermove",
-  event => {
-    if (
-      !activeFluidPointers.has(
-        event.pointerId
-      )
+  return Boolean(
+    target.closest(
+      "button, input, output, label, " +
+      "[role='button'], a"
     )
-      return;
+  );
+}
 
-    /*
-     * Coalesced events are useful on phones,
-     * but process each sample ONCE.
-     *
-     * The previous implementation processed
-     * the final point twice, which could
-     * collapse velocity back toward zero.
-     */
-    const samples =
-      typeof event.getCoalescedEvents === "function"
-        ? event.getCoalescedEvents()
-        : [];
+function onFluidPointerDown(event) {
+  if (eventIsExperimentUI(event))
+    return;
 
-    if (samples.length) {
-      for (const sample of samples)
-        moveFluidPointer(sample);
+  if (!beginFluidPointer(event))
+    return;
 
-      const last =
-        samples[samples.length - 1];
+  event.preventDefault();
+}
 
-      if (
-        last.clientX !== event.clientX ||
-        last.clientY !== event.clientY
-      ) {
-        moveFluidPointer(event);
-      }
-    } else {
-      moveFluidPointer(event);
-    }
+function onFluidPointerMove(event) {
+  if (
+    !activeFluidPointers.has(
+      event.pointerId
+    )
+  )
+    return;
 
-    event.preventDefault();
-  },
-  { passive: false }
-);
+  /*
+   * Deliberately use the primary PointerEvent only.
+   *
+   * Android's coalesced-event behaviour varies between
+   * browsers and was adding complexity to a path that
+   * only needs one reliable sample per dispatched move.
+   */
+  moveFluidPointer(event);
+
+  event.preventDefault();
+}
 
 function releaseFluidPointer(event) {
   activeFluidPointers.delete(
@@ -638,19 +634,40 @@ function releaseFluidPointer(event) {
   );
 }
 
-canvas.addEventListener(
+window.addEventListener(
+  "pointerdown",
+  onFluidPointerDown,
+  {
+    passive: false,
+    capture: true
+  }
+);
+
+window.addEventListener(
+  "pointermove",
+  onFluidPointerMove,
+  {
+    passive: false,
+    capture: true
+  }
+);
+
+window.addEventListener(
   "pointerup",
-  releaseFluidPointer
+  releaseFluidPointer,
+  {
+    passive: true,
+    capture: true
+  }
 );
 
-canvas.addEventListener(
+window.addEventListener(
   "pointercancel",
-  releaseFluidPointer
-);
-
-canvas.addEventListener(
-  "lostpointercapture",
-  releaseFluidPointer
+  releaseFluidPointer,
+  {
+    passive: true,
+    capture: true
+  }
 );
 
 
@@ -665,6 +682,9 @@ canvas.addEventListener(
  * FLIP then inherits that disturbed state.
  */
 function applyTouchField() {
+  document.documentElement.dataset.touchCount =
+    String(activeFluidPointers.size);
+
   if (!activeFluidPointers.size)
     return;
 

@@ -448,3 +448,17 @@ input[type="range"] {
     bottom: max(70px, calc(env(safe-area-inset-bottom) + 56px));
   }
 }
+
+/* GOOLAB tactile-input diagnostic */
+html[data-touch-count]:not([data-touch-count="0"]) body::after {
+  content: "TOUCH " attr(data-touch-count);
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  font: 600 10px/1 monospace;
+  letter-spacing: .16em;
+  color: rgba(255,255,255,.55);
+}
